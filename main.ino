@@ -67,19 +67,24 @@ void updateOLED(int http_code,
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.setDrawColor(1);
     String line2 = "(" + String(level_int) + "/5)";
-    u8g2.drawStr(64 - (u8g2.getStrWidth(line2.c_str()) / 2), 28, line2.c_str());
+    u8g2.drawStr(64 - (u8g2.getStrWidth(line2.c_str()) / 2), 32, line2.c_str());
 
     // Level str (6x10 font, white on black)
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.setDrawColor(1);
     String line1 = level_str;
-    u8g2.drawStr(64 - (u8g2.getStrWidth(line1.c_str()) / 2), 40, line1.c_str());
+    u8g2.drawStr(64 - (u8g2.getStrWidth(line1.c_str()) / 2), 44, line1.c_str());
 
     // HTTP Code (bottom of screen)
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.setDrawColor(1);
-    String line0 = String(http_code) + " (" + http_desc + ")";
-    u8g2.drawStr(64 - (u8g2.getStrWidth(line0.c_str()) / 2), 64, line0.c_str());
+    // if (http_code_int!=200) {
+        u8g2.setFont(u8g2_font_6x10_tf);
+        u8g2.setDrawColor(1);
+        u8g2.drawBox(0, 54, 128, 12);
+        u8g2.setDrawColor(0);
+        String line0 = String(http_code) + " " + http_desc + "";
+        u8g2.drawStr(64 - (u8g2.getStrWidth(line0.c_str()) / 2), 62, line0.c_str());
+        u8g2.setDrawColor(1);
+    // }
 
   } while (u8g2.nextPage());
 }
