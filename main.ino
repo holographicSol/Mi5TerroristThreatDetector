@@ -43,6 +43,40 @@ String threat_level_desc   = "pending";
 int   http_code_int = -1;
 String http_code_str = "Unknown";
 
+static void drawHeader() {
+    u8g2.setFont(u8g2_font_7x13B_tr);
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 15);
+    u8g2.setDrawColor(0);
+    u8g2.drawStr(4, 12, "Mi5 THREAT LEVEL");
+    u8g2.setDrawColor(1);
+}
+
+void updateOLED(int http_code,
+                const String& http_desc,
+                const String& level_str,
+                int level_int,
+                const String& level_desc) {
+  u8g2.firstPage();
+  do {
+    u8g2.setDrawColor(1);
+
+    // Header
+    drawHeader();
+
+    // Level
+    u8g2.setFont(u8g2_font_5x8_tf);
+    String line1 = "LEVEL: " + level_str + " (" + String(level_int) + "/5)";
+    u8g2.drawStr(0, 40, String(line1).c_str());
+
+    // HTTP Code
+    u8g2.setFont(u8g2_font_5x8_tf);
+    String line0 = "HTTP: " + String(http_code) + " (" + http_desc + ")";
+    u8g2.drawStr(0, 64, String(line0).c_str());
+
+  } while (u8g2.nextPage());
+}
+
 void setup() {
   Serial.begin(115200);
   delay(3000);
@@ -53,8 +87,7 @@ void setup() {
   u8g2.setFont(u8g2_font_5x8_tf);
   u8g2.firstPage();
   do {
-    u8g2.setDrawColor(1);
-    u8g2.drawStr(0, 10, "Mi5 Threat Level");
+    drawHeader();
   } while (u8g2.nextPage());
   Serial.println("OLED (U8g2): Initialized");
   delay(1000);
@@ -120,32 +153,6 @@ bool reconnect_to_wifi() {
     delay(500);
   }
   return false;
-}
-
-void updateOLED(int http_code,
-                const String& http_desc,
-                const String& level_str,
-                int level_int,
-                const String& level_desc) {
-  u8g2.firstPage();
-  do {
-    u8g2.setDrawColor(1);
-
-    // Header
-    u8g2.setFont(u8g2_font_5x8_tf);
-    u8g2.drawStr(0, 10, "Mi5 Threat Level");
-
-    // HTTP Code
-    u8g2.setFont(u8g2_font_5x8_tf);
-    String line0 = "HTTP: " + String(http_code) + " (" + http_desc + ")";
-    u8g2.drawStr(0, 40, String(line0).c_str());
-
-    // Level
-    u8g2.setFont(u8g2_font_5x8_tf);
-    String line1 = "LEVEL: " + level_str + " (" + String(level_int) + "/5)";
-    u8g2.drawStr(0, 50, String(line1).c_str());
-
-  } while (u8g2.nextPage());
 }
 
 void loop() {
