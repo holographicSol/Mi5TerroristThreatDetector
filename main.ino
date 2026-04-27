@@ -40,6 +40,8 @@ int   threat_level_int     = 0;
 String threat_level_str    = "pending";
 String threat_level_desc   = "pending";
 
+bool online_bool = false;
+
 int   http_code_int = -1;
 String http_code_str = "Unknown";
 
@@ -79,10 +81,10 @@ void updateOLED(int http_code,
     // if (http_code_int!=200) {
         u8g2.setFont(u8g2_font_6x10_tf);
         u8g2.setDrawColor(1);
-        u8g2.drawBox(0, 54, 128, 12);
+        u8g2.drawBox(0, 55, 128, 12);
         u8g2.setDrawColor(0);
         String line0 = String(http_code) + " " + http_desc + "";
-        u8g2.drawStr(64 - (u8g2.getStrWidth(line0.c_str()) / 2), 62, line0.c_str());
+        u8g2.drawStr(64 - (u8g2.getStrWidth(line0.c_str()) / 2), 63, line0.c_str());
         u8g2.setDrawColor(1);
     // }
 
@@ -120,9 +122,11 @@ void setup() {
   // Wait infinitely to connect
   Serial.print("Waiting for WiFi... ");
   while (WiFiMulti.run() != WL_CONNECTED) {
+    online_bool = false;
     Serial.print(".");
     delay(500);
   }
+  online_bool = true;
   Serial.println();
   Serial.println("WiFi connected");
   Serial.println("IP address: " + String(WiFi.localIP()));
@@ -147,12 +151,13 @@ String httpCodeToDesc(int code) {
   if (code == -3)       return "Send Failed";
   if (code == -4)       return "Read Timeout";
 
-  return "Unknown HTTP Code";
+  return "Unknown";
 }
 
 bool reconnect_to_wifi() {
-  if (WiFi.status() == WL_CONNECTED) return true;
-
+  if (WiFi.status() == WL_CONNECTED) {
+    return true;
+  }
   Serial.println("WiFi disconnected; trying to reconnect...");
   while (WiFi.status() != WL_CONNECTED) {
     if (WiFiMulti.run() == WL_CONNECTED) {
@@ -169,12 +174,24 @@ bool reconnect_to_wifi() {
 
 void loop() {
 
+  // Update Serial
+  Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+  Serial.println("Online: " + String(online_bool ? "true" : "false"));
+  Serial.println("HTTP Code: " + String(http_code_int) + " (" + http_code_str + ")");
+  Serial.println("Current UK threat level: " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
+  Serial.println("Threat level description: " + String(threat_level_desc));
+
+  // Update Display
+  updateOLED(http_code_int, http_code_str, threat_level_str, threat_level_int, threat_level_desc);
+
   // Reconnect WiFi if needed
   if (!reconnect_to_wifi()) {
+    online_bool = false;
     Serial.println("WiFi reconnection failed; retrying HTTP skipped.");
     delay(5000);
     return;
   }
+  online_bool = true;
 
 
   // Initialize
@@ -233,17 +250,6 @@ void loop() {
   else {
     Serial.printf("GET failed, error: %s\n", http.errorToString(http_code_int).c_str());
   }
-
-
-  // Print status
-  Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-  Serial.println("HTTP Code: " + String(http_code_int) + " (" + http_code_str + ")");
-  Serial.println("Current UK threat level: " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
-  Serial.println("Threat level description: " + String(threat_level_desc));
-
-
-  // Update OLED display
-  updateOLED(http_code_int, http_code_str, threat_level_str, threat_level_int, threat_level_desc);
 
   // End
   http.end();
