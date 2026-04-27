@@ -48,7 +48,8 @@ static void drawHeader() {
     u8g2.setDrawColor(1);
     u8g2.drawBox(0, 0, 128, 15);
     u8g2.setDrawColor(0);
-    u8g2.drawStr(4, 12, "Mi5 THREAT LEVEL");
+    String header = "Mi5 THREAT LEVEL";
+    u8g2.drawStr(64 - (u8g2.getStrWidth(header.c_str()) / 2), 12, header.c_str());
     u8g2.setDrawColor(1);
 }
 
@@ -59,20 +60,26 @@ void updateOLED(int http_code,
                 const String& level_desc) {
   u8g2.firstPage();
   do {
-    u8g2.setDrawColor(1);
-
-    // Header
+    // Header (large font, black on white)
     drawHeader();
 
-    // Level
-    u8g2.setFont(u8g2_font_5x8_tf);
-    String line1 = "LEVEL: " + level_str + " (" + String(level_int) + "/5)";
-    u8g2.drawStr(0, 40, String(line1).c_str());
+    // Level int (6x10 font, white on black)
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.setDrawColor(1);
+    String line2 = "(" + String(level_int) + "/5)";
+    u8g2.drawStr(64 - (u8g2.getStrWidth(line2.c_str()) / 2), 28, line2.c_str());
 
-    // HTTP Code
-    u8g2.setFont(u8g2_font_5x8_tf);
-    String line0 = "HTTP: " + String(http_code) + " (" + http_desc + ")";
-    u8g2.drawStr(0, 64, String(line0).c_str());
+    // Level str (6x10 font, white on black)
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.setDrawColor(1);
+    String line1 = level_str;
+    u8g2.drawStr(64 - (u8g2.getStrWidth(line1.c_str()) / 2), 40, line1.c_str());
+
+    // HTTP Code (bottom of screen)
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.setDrawColor(1);
+    String line0 = String(http_code) + " (" + http_desc + ")";
+    u8g2.drawStr(64 - (u8g2.getStrWidth(line0.c_str()) / 2), 64, line0.c_str());
 
   } while (u8g2.nextPage());
 }
