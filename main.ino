@@ -17,34 +17,47 @@
 
 */
 
-
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
-
 #include <Wire.h>
 #include <U8g2lib.h>
 
+// ###################################################################################################
+// DISPLAY
+// ###################################################################################################
+U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+
+// ###################################################################################################
+// WIFI
+// ###################################################################################################
 WiFiMulti WiFiMulti;
 HTTPClient http;
-
-// 128×64 SSD1309 I²C; 0x3C (or 0x3D) on hardware I²C
-U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 char *WIFI_SSID = "your_ssid";
 char *WIFI_PASS = "your_password";
 
-char *threat_level_url = "https://www.mi5.gov.uk/UKThreatLevel/UKThreatLevel.xml";
+// ###################################################################################################
+// GLOBAL STATS
+// ###################################################################################################
+
+// Connectivity
+bool online_bool = false;
+
+// HTTP Code
+int    http_code_int = -1;
+String http_code_str = "Unknown";
+
+// Threat level
+char *threat_level_url     = "https://www.mi5.gov.uk/UKThreatLevel/UKThreatLevel.xml";
 int   threat_level_int     = 0;
 String threat_level_str    = "pending";
 String threat_level_desc   = "pending";
 
-bool online_bool = false;
-
-int   http_code_int = -1;
-String http_code_str = "Unknown";
-
+// ###################################################################################################
+// DRAW HEADER
+// ###################################################################################################
 static void drawHeader() {
     u8g2.setFont(u8g2_font_7x13B_tr);
     u8g2.setDrawColor(1);
@@ -55,6 +68,9 @@ static void drawHeader() {
     u8g2.setDrawColor(1);
 }
 
+// ###################################################################################################
+// UPDATE DISPLAY
+// ###################################################################################################
 void updateOLED(int http_code,
                 const String& http_desc,
                 const String& level_str,
@@ -91,47 +107,9 @@ void updateOLED(int http_code,
   } while (u8g2.nextPage());
 }
 
-void setup() {
-  Serial.begin(115200);
-  delay(3000);
-
-  // Initialize OLED (U8g2)
-  Wire.begin(7, 8);  // SDA=GPIO7, SCL=GPIO8 FOR ESP32-P4-WiFi6-M Waveshare
-  u8g2.begin();
-  u8g2.setFont(u8g2_font_5x8_tf);
-  u8g2.firstPage();
-  do {
-    drawHeader();
-  } while (u8g2.nextPage());
-  Serial.println("OLED (U8g2): Initialized");
-  delay(1000);
-
-
-  // Startup header
-  Serial.println();
-  Serial.println();
-  Serial.println("[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]");
-
-
-  // Add access point
-  Serial.println();
-  Serial.println("Adding access point (SSID): " + String(WIFI_SSID));
-  WiFiMulti.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
-
-
-  // Wait infinitely to connect
-  Serial.print("Waiting for WiFi... ");
-  while (WiFiMulti.run() != WL_CONNECTED) {
-    online_bool = false;
-    Serial.print(".");
-    delay(500);
-  }
-  online_bool = true;
-  Serial.println();
-  Serial.println("WiFi connected");
-  Serial.println("IP address: " + String(WiFi.localIP()));
-}
-
+// ###################################################################################################
+// HTTP CODE TO DESCRIPTION
+// ###################################################################################################
 String httpCodeToDesc(int code) {
   if (code == 200)      return "OK";
   if (code == 204)      return "No Content";
@@ -145,15 +123,16 @@ String httpCodeToDesc(int code) {
   if (code == 502)      return "Bad Gateway";
   if (code == 503)      return "Service Unavailable";
   if (code == 504)      return "Gateway Timeout";
-
   if (code == -1)       return "Connection Failed";
   if (code == -2)       return "Connection Refused";
   if (code == -3)       return "Send Failed";
   if (code == -4)       return "Read Timeout";
-
   return "Unknown";
 }
 
+// ###################################################################################################
+// RECONNECT TO WIFI
+// ###################################################################################################
 bool reconnect_to_wifi() {
   if (WiFi.status() == WL_CONNECTED) {
     return true;
@@ -172,17 +151,84 @@ bool reconnect_to_wifi() {
   return false;
 }
 
+// ###################################################################################################
+// SETUP
+// ###################################################################################################
+void setup() {
+  // ------------------------------------------------------------------------------------------------
+  // Stabalize
+  // ------------------------------------------------------------------------------------------------
+  delay(3000);
+  
+  // ------------------------------------------------------------------------------------------------
+  // Serial
+  // ------------------------------------------------------------------------------------------------
+  Serial.begin(115200);
+
+  // ------------------------------------------------------------------------------------------------
+  // Display
+  // ------------------------------------------------------------------------------------------------
+
+  // Initialize display
+  Wire.begin(7, 8);  // SDA=GPIO7, SCL=GPIO8 FOR ESP32-P4-WiFi6-M Waveshare
+  u8g2.begin();
+  u8g2.setFont(u8g2_font_5x8_tf);
+  u8g2.firstPage();
+  do {
+    drawHeader();
+  } while (u8g2.nextPage());
+  Serial.println("OLED (U8g2): Initialized");
+  delay(1000);
+
+  // Startup header
+  Serial.println();
+  Serial.println();
+  Serial.println("[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]");
+
+  // ------------------------------------------------------------------------------------------------
+  // WiFi
+  // ------------------------------------------------------------------------------------------------
+
+  // Add access point
+  Serial.println();
+  Serial.println("Adding access point (SSID): " + String(WIFI_SSID));
+  WiFiMulti.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
+
+  // Wait infinitely to connect
+  Serial.print("Waiting for WiFi... ");
+  while (WiFiMulti.run() != WL_CONNECTED) {
+    online_bool = false;
+    Serial.print(".");
+    delay(500);
+  }
+  online_bool = true;
+  Serial.println();
+  Serial.println("WiFi connected");
+  Serial.println("IP address: " + String(WiFi.localIP()));
+}
+
+// ###################################################################################################
+// MAIN LOOP
+// ###################################################################################################
 void loop() {
+
+  // ------------------------------------------------------------------------------------------------
+  // Update Stats
+  // ------------------------------------------------------------------------------------------------
 
   // Update Serial
   Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-  Serial.println("Online: " + String(online_bool ? "true" : "false"));
-  Serial.println("HTTP Code: " + String(http_code_int) + " (" + http_code_str + ")");
-  Serial.println("Current UK threat level: " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
-  Serial.println("Threat level description: " + String(threat_level_desc));
+  Serial.println("Online                   : " + String(online_bool ? "true" : "false"));
+  Serial.println("HTTP Code                : " + String(http_code_int) + " (" + http_code_str + ")");
+  Serial.println("Current UK threat level  : " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
+  Serial.println("Threat level description : " + String(threat_level_desc));
 
   // Update Display
   updateOLED(http_code_int, http_code_str, threat_level_str, threat_level_int, threat_level_desc);
+
+  // ------------------------------------------------------------------------------------------------
+  // WiFi
+  // ------------------------------------------------------------------------------------------------
 
   // Reconnect WiFi if needed
   if (!reconnect_to_wifi()) {
@@ -193,6 +239,9 @@ void loop() {
   }
   online_bool = true;
 
+  // ------------------------------------------------------------------------------------------------
+  // Read RSS Feed
+  // ------------------------------------------------------------------------------------------------
 
   // Initialize
   http.begin(threat_level_url);
@@ -247,11 +296,13 @@ void loop() {
   }
 
   // Get Failed
-  else {
-    Serial.printf("GET failed, error: %s\n", http.errorToString(http_code_int).c_str());
-  }
+  else {Serial.printf("GET failed, error: %s\n", http.errorToString(http_code_int).c_str());}
 
   // End
   http.end();
+
+  // ------------------------------------------------------------------------------------------------
+  // Delay next iteration
+  // ------------------------------------------------------------------------------------------------
   delay(10000);
 }
