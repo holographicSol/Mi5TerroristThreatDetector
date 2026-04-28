@@ -55,16 +55,23 @@ int   threat_level_int     = 0;
 String threat_level_str    = "pending";
 String threat_level_desc   = "pending";
 
+// Display Header
+String display_header = "Mi5 THREAT LEVEL";
+
+// Serial Header
+String serial_header = "[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]";
+
 // ###################################################################################################
 // DRAW HEADER
 // ###################################################################################################
 static void drawHeader() {
     display_0.setFont(u8g2_font_7x13B_tr);
+    // Header background
     display_0.setDrawColor(1);
     display_0.drawBox(0, 0, 128, 15);
+    // Header text
     display_0.setDrawColor(0);
-    String header = "Mi5 THREAT LEVEL";
-    display_0.drawStr(64 - (display_0.getStrWidth(header.c_str()) / 2), 12, header.c_str());
+    display_0.drawStr(64 - (display_0.getStrWidth(display_header.c_str()) / 2), 12, display_header.c_str());
     display_0.setDrawColor(1);
 }
 
@@ -168,7 +175,7 @@ void setup() {
   // Startup header
   Serial.println();
   Serial.println();
-  Serial.println("[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]");
+  Serial.println(serial_header);
   Serial.println();
 
   // ------------------------------------------------------------------------------------------------
