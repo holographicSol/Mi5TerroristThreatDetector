@@ -27,13 +27,13 @@
 // ###################################################################################################
 // DISPLAY
 // ###################################################################################################
-U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SSD1309_128X64_NONAME2_F_HW_I2C display_0(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 // ###################################################################################################
 // WIFI
 // ###################################################################################################
-WiFiMulti wm;
-HTTPClient http;
+WiFiMulti  wifimulti;
+HTTPClient httpclient;
 
 char *WIFI_SSID = "your_ssid";
 char *WIFI_PASS = "your_password";
@@ -59,52 +59,52 @@ String threat_level_desc   = "pending";
 // DRAW HEADER
 // ###################################################################################################
 static void drawHeader() {
-    u8g2.setFont(u8g2_font_7x13B_tr);
-    u8g2.setDrawColor(1);
-    u8g2.drawBox(0, 0, 128, 15);
-    u8g2.setDrawColor(0);
+    display_0.setFont(u8g2_font_7x13B_tr);
+    display_0.setDrawColor(1);
+    display_0.drawBox(0, 0, 128, 15);
+    display_0.setDrawColor(0);
     String header = "Mi5 THREAT LEVEL";
-    u8g2.drawStr(64 - (u8g2.getStrWidth(header.c_str()) / 2), 12, header.c_str());
-    u8g2.setDrawColor(1);
+    display_0.drawStr(64 - (display_0.getStrWidth(header.c_str()) / 2), 12, header.c_str());
+    display_0.setDrawColor(1);
 }
 
 // ###################################################################################################
 // UPDATE DISPLAY
 // ###################################################################################################
-void updateOLED(int http_code,
+void updateDisplay(int http_code,
                 const String& http_desc,
                 const String& level_str,
                 int level_int,
                 const String& level_desc) {
-  u8g2.firstPage();
+  display_0.firstPage();
   do {
     // Header (large font, black on white)
     drawHeader();
 
     // Level int (6x10 font, white on black)
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.setDrawColor(1);
+    display_0.setFont(u8g2_font_6x10_tf);
+    display_0.setDrawColor(1);
     String line2 = "(" + String(level_int) + "/5)";
-    u8g2.drawStr(64 - (u8g2.getStrWidth(line2.c_str()) / 2), 32, line2.c_str());
+    display_0.drawStr(64 - (display_0.getStrWidth(line2.c_str()) / 2), 32, line2.c_str());
 
     // Level str (6x10 font, white on black)
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.setDrawColor(1);
+    display_0.setFont(u8g2_font_6x10_tf);
+    display_0.setDrawColor(1);
     String line1 = level_str;
-    u8g2.drawStr(64 - (u8g2.getStrWidth(line1.c_str()) / 2), 44, line1.c_str());
+    display_0.drawStr(64 - (display_0.getStrWidth(line1.c_str()) / 2), 44, line1.c_str());
 
     // HTTP Code (bottom of screen)
     // if (http_code_int!=200) {
-        u8g2.setFont(u8g2_font_6x10_tf);
-        u8g2.setDrawColor(1);
-        u8g2.drawBox(0, 55, 128, 12);
-        u8g2.setDrawColor(0);
+        display_0.setFont(u8g2_font_6x10_tf);
+        display_0.setDrawColor(1);
+        display_0.drawBox(0, 55, 128, 12);
+        display_0.setDrawColor(0);
         String line0 = String(http_code) + " " + http_desc + "";
-        u8g2.drawStr(64 - (u8g2.getStrWidth(line0.c_str()) / 2), 63, line0.c_str());
-        u8g2.setDrawColor(1);
+        display_0.drawStr(64 - (display_0.getStrWidth(line0.c_str()) / 2), 63, line0.c_str());
+        display_0.setDrawColor(1);
     // }
 
-  } while (u8g2.nextPage());
+  } while (display_0.nextPage());
 }
 
 // ###################################################################################################
@@ -139,7 +139,7 @@ bool reconnect_to_wifi() {
   }
   Serial.println("WiFi disconnected; trying to reconnect...");
   while (WiFi.status() != WL_CONNECTED) {
-    if (wm.run() == WL_CONNECTED) {
+    if (wifimulti.run() == WL_CONNECTED) {
       Serial.println();
       Serial.println("WiFi reconnected");
       Serial.println("IP address: " + String(WiFi.localIP()));
@@ -178,12 +178,12 @@ void setup() {
   // Initialize display
   Wire.begin(7, 8);  // SDA=GPIO7, SCL=GPIO8 FOR ESP32-P4-WiFi6-M Waveshare
   Serial.println("[Display] Initializing");
-  u8g2.begin();
-  u8g2.setFont(u8g2_font_5x8_tf);
-  u8g2.firstPage();
+  display_0.begin();
+  display_0.setFont(u8g2_font_5x8_tf);
+  display_0.firstPage();
   do {
     drawHeader();
-  } while (u8g2.nextPage());
+  } while (display_0.nextPage());
   Serial.println("[Display] Initialized");
   delay(1000);
 
@@ -193,11 +193,11 @@ void setup() {
 
   // Add access point
   Serial.println("[WiFi] Adding access point (SSID): " + String(WIFI_SSID));
-  wm.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
+  wifimulti.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
 
   // Wait infinitely to connect
   Serial.print("[WiFi] Waiting for WiFi... ");
-  while (wm.run() != WL_CONNECTED) {
+  while (wifimulti.run() != WL_CONNECTED) {
     online_bool = false;
     Serial.print(".");
     delay(500);
@@ -220,7 +220,7 @@ void loop() {
   // Reconnect WiFi if needed
   if (!reconnect_to_wifi()) {
     online_bool = false;
-    Serial.println("WiFi reconnection failed; retrying HTTP skipped.");
+    Serial.println("WiFi reconnection failed");
     delay(5000);
   }
   else {online_bool = true;}
@@ -232,10 +232,10 @@ void loop() {
     // ------------------------------------------------------------------------------------------------
 
     // Initialize
-    http.begin(threat_level_url);
+    httpclient.begin(threat_level_url);
 
     // Get request
-    http_code_int = http.GET();
+    http_code_int = httpclient.GET();
     http_code_str = httpCodeToDesc(http_code_int);
 
 
@@ -243,7 +243,7 @@ void loop() {
     if (http_code_int > 0) {
 
         // Get payload as String type
-        String payload = http.getString();
+        String payload = httpclient.getString();
 
         // There are 2 title and 2 description tags, we are interested in child tags of item
         int itemStart = payload.indexOf("<item>");
@@ -284,10 +284,10 @@ void loop() {
     }
 
     // Get Failed
-    else {Serial.printf("GET failed, error: %s\n", http.errorToString(http_code_int).c_str());}
+    else {Serial.printf("GET failed, error: %s\n", httpclient.errorToString(http_code_int).c_str());}
 
     // End
-    http.end();
+    httpclient.end();
   }
 
   // ------------------------------------------------------------------------------------------------
@@ -302,7 +302,7 @@ void loop() {
   Serial.println("Threat level description : " + String(threat_level_desc));
 
   // Update Display
-  updateOLED(http_code_int, http_code_str, threat_level_str, threat_level_int, threat_level_desc);
+  updateDisplay(http_code_int, http_code_str, threat_level_str, threat_level_int, threat_level_desc);
 
   // ------------------------------------------------------------------------------------------------
   // Delay next iteration
