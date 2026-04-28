@@ -32,7 +32,7 @@ U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 // ###################################################################################################
 // WIFI
 // ###################################################################################################
-WiFiMulti WiFiMulti;
+WiFiMulti wm;
 HTTPClient http;
 
 char *WIFI_SSID = "your_ssid";
@@ -139,7 +139,7 @@ bool reconnect_to_wifi() {
   }
   Serial.println("WiFi disconnected; trying to reconnect...");
   while (WiFi.status() != WL_CONNECTED) {
-    if (WiFiMulti.run() == WL_CONNECTED) {
+    if (wm.run() == WL_CONNECTED) {
       Serial.println();
       Serial.println("WiFi reconnected");
       Serial.println("IP address: " + String(WiFi.localIP()));
@@ -165,52 +165,130 @@ void setup() {
   // ------------------------------------------------------------------------------------------------
   Serial.begin(115200);
 
+  // Startup header
+  Serial.println();
+  Serial.println();
+  Serial.println("[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]");
+  Serial.println();
+
   // ------------------------------------------------------------------------------------------------
   // Display
   // ------------------------------------------------------------------------------------------------
 
   // Initialize display
   Wire.begin(7, 8);  // SDA=GPIO7, SCL=GPIO8 FOR ESP32-P4-WiFi6-M Waveshare
+  Serial.println("[Display] Initializing");
   u8g2.begin();
   u8g2.setFont(u8g2_font_5x8_tf);
   u8g2.firstPage();
   do {
     drawHeader();
   } while (u8g2.nextPage());
-  Serial.println("OLED (U8g2): Initialized");
+  Serial.println("[Display] Initialized");
   delay(1000);
-
-  // Startup header
-  Serial.println();
-  Serial.println();
-  Serial.println("[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]");
 
   // ------------------------------------------------------------------------------------------------
   // WiFi
   // ------------------------------------------------------------------------------------------------
 
   // Add access point
-  Serial.println();
-  Serial.println("Adding access point (SSID): " + String(WIFI_SSID));
-  WiFiMulti.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
+  Serial.println("[WiFi] Adding access point (SSID): " + String(WIFI_SSID));
+  wm.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
 
   // Wait infinitely to connect
-  Serial.print("Waiting for WiFi... ");
-  while (WiFiMulti.run() != WL_CONNECTED) {
+  Serial.print("[WiFi] Waiting for WiFi... ");
+  while (wm.run() != WL_CONNECTED) {
     online_bool = false;
     Serial.print(".");
     delay(500);
   }
   online_bool = true;
   Serial.println();
-  Serial.println("WiFi connected");
-  Serial.println("IP address: " + String(WiFi.localIP()));
+  Serial.println("[WiFi] connected");
+  Serial.println("[WiFi] IP address: " + String(WiFi.localIP()));
 }
 
 // ###################################################################################################
 // MAIN LOOP
 // ###################################################################################################
 void loop() {
+
+  // ------------------------------------------------------------------------------------------------
+  // WiFi
+  // ------------------------------------------------------------------------------------------------
+
+  // Reconnect WiFi if needed
+  if (!reconnect_to_wifi()) {
+    online_bool = false;
+    Serial.println("WiFi reconnection failed; retrying HTTP skipped.");
+    delay(5000);
+  }
+  else {online_bool = true;}
+
+  if (online_bool==true) {
+
+    // ------------------------------------------------------------------------------------------------
+    // Read RSS Feed
+    // ------------------------------------------------------------------------------------------------
+
+    // Initialize
+    http.begin(threat_level_url);
+
+    // Get request
+    http_code_int = http.GET();
+    http_code_str = httpCodeToDesc(http_code_int);
+
+
+    // Get Success
+    if (http_code_int > 0) {
+
+        // Get payload as String type
+        String payload = http.getString();
+
+        // There are 2 title and 2 description tags, we are interested in child tags of item
+        int itemStart = payload.indexOf("<item>");
+        int itemEnd   = payload.indexOf("</item>", itemStart);
+        if (itemStart != -1 && itemEnd != -1 && itemEnd > itemStart) {
+        String item = payload.substring(itemStart, itemEnd);
+
+        // Title: Threat Level
+        int titleStart = item.indexOf("<title>");
+        int titleEnd   = item.indexOf("</title>", titleStart);
+        if (titleStart != -1 && titleEnd != -1 && titleEnd > titleStart) {
+            threat_level_str = item.substring(titleStart + 7, titleEnd);
+            threat_level_str.trim();
+
+            // Extract level
+            int colon = threat_level_str.indexOf("Current threat level: ");
+            if (colon != -1) {
+            threat_level_str = threat_level_str.substring(colon + 22);  // 22 = len "Current threat level: "
+            threat_level_str.trim();
+            }
+
+            // Map level string to int
+            if      (threat_level_str == "LOW")       threat_level_int = 1;
+            else if (threat_level_str == "MODERATE")  threat_level_int = 2;
+            else if (threat_level_str == "SUBSTANTIAL") threat_level_int = 3;
+            else if (threat_level_str == "SEVERE")    threat_level_int = 4;
+            else if (threat_level_str == "CRITICAL")  threat_level_int = 5;
+        }
+
+        // Description: Threat Level description
+        int descStart = item.indexOf("<description>");
+        int descEnd   = item.indexOf("</description>", descStart);
+        if (descStart != -1 && descEnd != -1 && descEnd > descStart) {
+            threat_level_desc = item.substring(descStart + 13, descEnd);
+            threat_level_desc.trim();
+        }
+        }
+    }
+
+    // Get Failed
+    else {Serial.printf("GET failed, error: %s\n", http.errorToString(http_code_int).c_str());}
+
+    // End
+    http.end();
+  }
 
   // ------------------------------------------------------------------------------------------------
   // Update Stats
@@ -225,81 +303,6 @@ void loop() {
 
   // Update Display
   updateOLED(http_code_int, http_code_str, threat_level_str, threat_level_int, threat_level_desc);
-
-  // ------------------------------------------------------------------------------------------------
-  // WiFi
-  // ------------------------------------------------------------------------------------------------
-
-  // Reconnect WiFi if needed
-  if (!reconnect_to_wifi()) {
-    online_bool = false;
-    Serial.println("WiFi reconnection failed; retrying HTTP skipped.");
-    delay(5000);
-    return;
-  }
-  online_bool = true;
-
-  // ------------------------------------------------------------------------------------------------
-  // Read RSS Feed
-  // ------------------------------------------------------------------------------------------------
-
-  // Initialize
-  http.begin(threat_level_url);
-
-  // Get request
-  http_code_int = http.GET();
-  http_code_str = httpCodeToDesc(http_code_int);
-
-
-  // Get Success
-  if (http_code_int > 0) {
-
-    // Get payload as String type
-    String payload = http.getString();
-
-    // There are 2 title and 2 description tags, we are interested in child tags of item
-    int itemStart = payload.indexOf("<item>");
-    int itemEnd   = payload.indexOf("</item>", itemStart);
-    if (itemStart != -1 && itemEnd != -1 && itemEnd > itemStart) {
-      String item = payload.substring(itemStart, itemEnd);
-
-      // Title: Threat Level
-      int titleStart = item.indexOf("<title>");
-      int titleEnd   = item.indexOf("</title>", titleStart);
-      if (titleStart != -1 && titleEnd != -1 && titleEnd > titleStart) {
-        threat_level_str = item.substring(titleStart + 7, titleEnd);
-        threat_level_str.trim();
-
-        // Extract level
-        int colon = threat_level_str.indexOf("Current threat level: ");
-        if (colon != -1) {
-          threat_level_str = threat_level_str.substring(colon + 22);  // 22 = len "Current threat level: "
-          threat_level_str.trim();
-        }
-
-        // Map level string to int
-        if      (threat_level_str == "LOW")       threat_level_int = 1;
-        else if (threat_level_str == "MODERATE")  threat_level_int = 2;
-        else if (threat_level_str == "SUBSTANTIAL") threat_level_int = 3;
-        else if (threat_level_str == "SEVERE")    threat_level_int = 4;
-        else if (threat_level_str == "CRITICAL")  threat_level_int = 5;
-      }
-
-      // Description: Threat Level description
-      int descStart = item.indexOf("<description>");
-      int descEnd   = item.indexOf("</description>", descStart);
-      if (descStart != -1 && descEnd != -1 && descEnd > descStart) {
-        threat_level_desc = item.substring(descStart + 13, descEnd);
-        threat_level_desc.trim();
-      }
-    }
-  }
-
-  // Get Failed
-  else {Serial.printf("GET failed, error: %s\n", http.errorToString(http_code_int).c_str());}
-
-  // End
-  http.end();
 
   // ------------------------------------------------------------------------------------------------
   // Delay next iteration
