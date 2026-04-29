@@ -1,4 +1,4 @@
-﻿/*
+/*
     Terrorism Threat Levels System - Written By Benjamin Jack Cullen.
 
 
@@ -33,6 +33,8 @@
 #include <SPIFFS.h>
 // Arduino JSON library
 #include <ArduinoJson.h>
+
+bool debug=false;
 
 #define JSON_CONFIG_FILE "/config.json"
 
@@ -309,7 +311,30 @@ void connectionTask(void * pvParameters) {
 static void PrintHelp(void) {
   Serial.println(
     R"(
+
+    -----------------------------------------------------------------------------
+
     [Help]
+
+    help or h displays this help message.
+
+    [Connect to Access Point]
+
+    connect --ssid <SSID> -p <PASSWORD>
+
+    Access point will be stored automatically.
+
+    [Debug]
+
+    debug --enable
+    debug -e
+    debug --disable
+    debug -d
+
+    If enabled, system information will be printed to serial, periodically.
+
+    -----------------------------------------------------------------------------
+
     )"
   );
 }
@@ -369,7 +394,7 @@ void createChecksumSerial0(char * buffer) {
     - For best practice only use ArgParser if flags are required, else use PlainArgParser for simple tokenization.
     - Use PlainArgParser if processing negative numbers.
     - short flags: 1-3 alphanumeric chars. example: -a, -a1, -a12, -abc.
-    - long flags: 1-256 alphanumeric chars. example: --foobar, --foo-bar, --foobar123.
+    - long flags: 4-256 alphanumeric chars. example: --foobar, --foo-bar, --foobar123.
     - see ArgParser for more details.
 */
 size_t pos_count;
@@ -435,13 +460,16 @@ void serialTask(void * pvParameters) {
     while (Serial.available())
       {Serial.readBytesUntil('\n', serial0Data.BUFFER, sizeof(serial0Data.BUFFER)-1);}
     if (strlen(serial0Data.BUFFER)>=2) {
+
       // Debug Serial Buffer.
       Serial.println("[CmdProcess] " + String(serial0Data.BUFFER));
+
       // Initialize argparse.
       argparser_reset(&parser);
       if (!argparser_init_from_buffer(&parser, serial0Data.BUFFER))
         {fprintf(stderr, "[cmd] Failed to initialize parser from buffer\n"); return;}
       pos_count=0; pos={}; pos = argparser_get_positionals(&parser, &pos_count);
+
       // Verbosity.
       verbose=false; verbose_1=false;
       verbose = argparser_get_bool(&parser, "v") || argparser_get_bool(&parser, "verbose");
@@ -450,17 +478,25 @@ void serialTask(void * pvParameters) {
       if (verbose==false) {verbose_1=false;}
       Serial.println("[cmd] verbose: " + String(verbose));
       Serial.println("[cmd] verbose1: " + String(verbose_1));
+
       // Enable/Disable
       enable=false;
       if (argparser_has_flag(&parser, "disable") || argparser_has_flag(&parser, "d")) {enable=false;}
       else if (argparser_has_flag(&parser, "enable") || argparser_has_flag(&parser, "e")) {enable=true;}
+
       // Debug Arg Parse.
       printArgParse();
+
       // Commands.
-      if (strcmp(pos[0], "help")==0 || strcmp(pos[0], "h")==0)
-        {printf("Usage: [buffer with] [--flag value] [-f value] [positional...]\n");
-        if (verbose) {PrintHelp();}
+      if (strcmp(pos[0], "help")==0 || strcmp(pos[0], "h")==0) {PrintHelp();}
+
+      // Debug
+      else if (strcmp(pos[0], "debug")==0) {
+        if (enable) {Serial.println("[cmd] Debug enabled"); debug=true;}
+        else {Serial.println("[cmd] Debug disabled");debug=false;}
       }
+
+      // Connect
       else if (strcmp(pos[0], "connect")==0) {
         const char* ssid = "";
         const char* password = "";
@@ -471,8 +507,6 @@ void serialTask(void * pvParameters) {
           vTaskSuspend(ConnectionTask);
           ap_connected = false;
 
-          // Disconnect from current AP (do not tear down the WiFi interface)
-          // WiFi.disconnect(false);
           delay(100);
 
           // Add new AP and attempt connection
@@ -507,14 +541,16 @@ void serialTask(void * pvParameters) {
     // -----------------------------------------------------------------------------------------------
     // Update Serial
     // -----------------------------------------------------------------------------------------------
-    Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-    Serial.println("Wifi                     : " + String(ap_connected ? "true" : "false"));
-    Serial.println("WiFi Signal (dBm)        : " + String(wifi_signal_dBm_raw));
-    Serial.println("WiFi Signal              : " + wifi_signal_dBm_name);
-    Serial.println("WiFi Signal (bars)       : " + String(wifi_signal_dBm_bars) + "/4");
-    Serial.println("HTTP Code                : " + String(http_code_int) + " (" + http_code_str + ")");
-    Serial.println("Current UK threat level  : " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
-    Serial.println("Threat level description : " + String(threat_level_desc));
+    if (debug) {
+      Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+      Serial.println("Wifi                     : " + String(ap_connected ? "true" : "false"));
+      Serial.println("WiFi Signal (dBm)        : " + String(wifi_signal_dBm_raw));
+      Serial.println("WiFi Signal              : " + wifi_signal_dBm_name);
+      Serial.println("WiFi Signal (bars)       : " + String(wifi_signal_dBm_bars) + "/4");
+      Serial.println("HTTP Code                : " + String(http_code_int) + " (" + http_code_str + ")");
+      Serial.println("Current UK threat level  : " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
+      Serial.println("Threat level description : " + String(threat_level_desc));
+    }
 
     // -----------------------------------------------------------------------------------------------
     // End
