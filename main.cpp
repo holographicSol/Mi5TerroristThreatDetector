@@ -27,6 +27,15 @@
 #include "strval.h"
 #include "hextodig.h"
 
+// File System Library
+#include <FS.h>
+// SPI Flash Syetem Library
+#include <SPIFFS.h>
+// Arduino JSON library
+#include <ArduinoJson.h>
+
+#define JSON_CONFIG_FILE "/config.json"
+
 // ###################################################################################################
 // TASKS
 // ###################################################################################################
@@ -51,8 +60,8 @@ String serial_header = "[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]";
 WiFiMulti  wifimulti;
 HTTPClient httpclient;
 
-char *WIFI_SSID = "your_ssid";
-char *WIFI_PASS = "your_password";
+char WIFI_SSID[128];
+char WIFI_PASS[64];
 
 int    wifi_signal_dBm_raw  = 0;
 String wifi_signal_dBm_name = "pending";
@@ -139,6 +148,87 @@ String httpCodeToDesc(int code) {
   if (code == -3)       return "Send Failed";
   if (code == -4)       return "Read Timeout";
   return "Unknown";
+}
+
+void saveConfigFile()
+// Save Config in JSON format
+{
+  Serial.println(F("Saving configuration..."));
+  
+  // Create a JSON document
+  StaticJsonDocument<512> json;
+  json["WIFI_SSID"] = WIFI_SSID;
+  json["WIFI_PASS"] = WIFI_PASS;
+ 
+  // Open config file
+  File configFile = SPIFFS.open(JSON_CONFIG_FILE, "w");
+  if (!configFile)
+  {
+    // Error, file did not open
+    Serial.println("failed to open config file for writing");
+  }
+ 
+  // Serialize JSON data to write to file
+  serializeJsonPretty(json, Serial);
+  if (serializeJson(json, configFile) == 0)
+  {
+    // Error writing file
+    Serial.println(F("Failed to write to file"));
+  }
+  // Close file
+  configFile.close();
+}
+ 
+bool loadConfigFile()
+// Load existing configuration file
+{
+  // Uncomment if we need to format filesystem
+  // SPIFFS.format();
+ 
+  // Read configuration from FS json
+  Serial.println("Mounting File System...");
+ 
+  // May need to make it begin(true) first time you are using SPIFFS
+  if (SPIFFS.begin(false) || SPIFFS.begin(true))
+  {
+    Serial.println("mounted file system");
+    if (SPIFFS.exists(JSON_CONFIG_FILE))
+    {
+      // The file exists, reading and loading
+      Serial.println("reading config file");
+      File configFile = SPIFFS.open(JSON_CONFIG_FILE, "r");
+      if (configFile)
+      {
+        Serial.println("Opened configuration file");
+        StaticJsonDocument<512> json;
+        DeserializationError error = deserializeJson(json, configFile);
+        serializeJsonPretty(json, Serial);
+        if (!error)
+        {
+          Serial.println("Parsing JSON");
+
+          memset(WIFI_SSID, 0, sizeof(WIFI_SSID));
+          memset(WIFI_PASS, 0, sizeof(WIFI_PASS));
+          strcpy(WIFI_SSID, json["WIFI_SSID"]);
+          strcpy(WIFI_PASS, json["WIFI_PASS"]);
+ 
+          return true;
+        }
+        else
+        {
+          // Error loading JSON data
+          Serial.println("Failed to load json config");
+        }
+      }
+    }
+  }
+  else
+  {
+    // Error mounting file system
+    Serial.println("Failed to mount FS");
+  }
+ 
+  return false;
 }
 
 // ###################################################################################################
@@ -324,9 +414,12 @@ bool validate_password(const char* password) {
 
 bool set_ap(const char* ssid, const char* password) {
   wifimulti.APlistClean(); // Clear existing APs to avoid conflicts
-  bool result = wifimulti.addAP(ssid, password);
-  if (result) {Serial.println("[WiFi] Access point updated successfully: " + String(ssid));}
-  else {Serial.println("[WiFi] Failed to update access point: " + String(ssid));}
+  strncpy(WIFI_SSID, ssid, sizeof(WIFI_SSID) - 1);
+  strncpy(WIFI_PASS, password, sizeof(WIFI_PASS) - 1);
+  saveConfigFile();
+  bool result = wifimulti.addAP(WIFI_SSID, WIFI_PASS);
+  if (result) {Serial.println("[WiFi] Access point updated successfully: " + String(WIFI_SSID));}
+  else {Serial.println("[WiFi] Failed to update access point: " + String(WIFI_SSID));}
   return result;
 }
 
@@ -522,7 +615,9 @@ void setup() {
   // ------------------------------------------------------------------------------------------------
 
   // Add access point
-  Serial.println("[WiFi] Adding access point (SSID): " + String(WIFI_SSID));
+  // Serial.println("[WiFi] Adding access point (SSID): " + String(WIFI_SSID));
+  bool res = loadConfigFile();
+  Serial.println("[WiFi] Loaded config from file: " + String(res ? "true" : "false"));
   wifimulti.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
 
   // ------------------------------------------------------------------------------------------------
