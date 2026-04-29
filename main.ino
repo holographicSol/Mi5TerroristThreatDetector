@@ -184,7 +184,7 @@ void updateStats(void * pvParameters) {
             int bh = barHeights[0];
             int by = barBase - bh + 1;
             display_0.drawBox(bx, by, barW, bh);
-            display_0.drawStr(2 + barW + 2, 64, "x");
+            display_0.drawStr(2 + barW + 2, 63, "x");
           }
       }
 
