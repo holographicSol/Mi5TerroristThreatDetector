@@ -124,54 +124,82 @@ static void drawHeader() {
 }
 
 // ###################################################################################################
-// UPDATE DISPLAY
+// UPDATE STATS
 // ###################################################################################################
-void updateDisplay() {
-  display_0.firstPage();
-  do {
-    display_0.setFont(u8g2_font_6x10_tf);
+void updateStats(void * pvParameters) {
+  while (1) {
 
-    // Header (inverted, y=0-10)
-    drawHeader();
+    // -----------------------------------------------------------------------------------------------
+    // Update Serial
+    // -----------------------------------------------------------------------------------------------
+    Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+    Serial.println("Wifi                     : " + String(online_bool ? "true" : "false"));
+    Serial.println("WiFi Signal (dBm)        : " + String(wifi_signal_dBm_raw));
+    Serial.println("WiFi Signal              : " + wifi_signal_dBm_name);
+    Serial.println("WiFi Signal (bars)       : " + String(wifi_signal_dBm_bars) + "/4");
+    Serial.println("HTTP Code                : " + String(http_code_int) + " (" + http_code_str + ")");
+    Serial.println("Current UK threat level  : " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
+    Serial.println("Threat level description : " + String(threat_level_desc));
 
-    // Level str (centered, y=24)
-    display_0.setDrawColor(1);
-    display_0.drawStr(64 - (display_0.getStrWidth(threat_level_str.c_str()) / 2), 24, threat_level_str.c_str());
+    // -----------------------------------------------------------------------------------------------
+    // Update Display
+    // -----------------------------------------------------------------------------------------------
+    display_0.firstPage();
+    do {
+      display_0.setFont(u8g2_font_6x10_tf);
 
-    // Level int "(N/5)" (centered, y=36)
-    String lineInt = "(" + String(threat_level_int) + "/5)";
-    display_0.drawStr(64 - (display_0.getStrWidth(lineInt.c_str()) / 2), 36, lineInt.c_str());
+      // Header (inverted, y=0-10)
+      drawHeader();
 
-    // Draw Bottom info bar (inverted, y=53-63)
-    display_0.setDrawColor(1);
-    display_0.drawBox(0, 53, 128, 11);
-    display_0.setDrawColor(0);
+      // Level str (centered, y=24)
+      display_0.setDrawColor(1);
+      display_0.drawStr(64 - (display_0.getStrWidth(threat_level_str.c_str()) / 2), 24, threat_level_str.c_str());
 
-    // WiFi symbol: rising bars, left-aligned, bottom at y=62
-    // 4 bars each 2px wide with 1px gap; filled up to wifi_signal_dBm_bars, outline only beyond
-    {
-        const int barW        = 2;
-        const int barGap      = 1;
-        const int barBase     = 62;
-        const int barHeights[4] = {3, 5, 7, 9};
-        for (int i = 0; i < wifi_signal_dBm_bars; i++) {
-            int bx = 2 + i * (barW + barGap);
-            int bh = barHeights[i];
-            int by = barBase - bh + 1;
-            if (online_bool && i < wifi_signal_dBm_bars) {
+      // Level int "(N/5)" (centered, y=36)
+      String lineInt = "(" + String(threat_level_int) + "/5)";
+      display_0.drawStr(64 - (display_0.getStrWidth(lineInt.c_str()) / 2), 36, lineInt.c_str());
+
+      // Draw Bottom info bar (inverted, y=53-63)
+      display_0.setDrawColor(1);
+      display_0.drawBox(0, 53, 128, 11);
+      display_0.setDrawColor(0);
+
+      // WiFi symbol: rising bars, left-aligned, bottom at y=62
+      // 4 bars each 2px wide with 1px gap; filled up to wifi_signal_dBm_bars, outline only beyond
+      {
+          const int barW        = 2;
+          const int barGap      = 1;
+          const int barBase     = 62;
+          const int barHeights[4] = {3, 5, 7, 9};
+          if (online_bool) {
+            for (int i = 0; i < wifi_signal_dBm_bars; i++) {
+                int bx = 2 + i * (barW + barGap);
+                int bh = barHeights[i];
+                int by = barBase - bh + 1;
                 display_0.drawBox(bx, by, barW, bh);
-            } else {
-                display_0.drawFrame(bx, by, barW, bh);
             }
-        }
-    }
+          }
+          else {
+            int bx = 2 + 0 * (barW + barGap);
+            int bh = barHeights[0];
+            int by = barBase - bh + 1;
+            display_0.drawBox(bx, by, barW, bh);
+            display_0.drawStr(2 + barW + 2, 64, "x");
+          }
+      }
 
-    // HTTP code: right-aligned (no description)
-    String httpStr = String(http_code_int);
-    display_0.drawStr(128 - display_0.getStrWidth(httpStr.c_str()) - 6, 62, httpStr.c_str());
+      // HTTP code: right-aligned (no description)
+      String httpStr = String(http_code_int);
+      display_0.drawStr(128 - display_0.getStrWidth(httpStr.c_str()) - 6, 62, httpStr.c_str());
 
 
-  } while (display_0.nextPage());
+    } while (display_0.nextPage());
+
+    // -----------------------------------------------------------------------------------------------
+    // End
+    // -----------------------------------------------------------------------------------------------
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
 }
 
 // ###################################################################################################
@@ -202,11 +230,14 @@ String httpCodeToDesc(int code) {
 // ###################################################################################################
 bool reconnect_to_wifi() {
   if (WiFi.status() == WL_CONNECTED) {
+    online_bool = true;
     return true;
   }
   Serial.println("WiFi disconnected; trying to reconnect...");
   while (WiFi.status() != WL_CONNECTED) {
+    online_bool = false;
     if (wifimulti.run() == WL_CONNECTED) {
+      online_bool = true;
       Serial.println();
       Serial.println("WiFi reconnected");
       Serial.println("IP address: " + String(WiFi.localIP()));
@@ -215,6 +246,7 @@ bool reconnect_to_wifi() {
     Serial.print(".");
     delay(500);
   }
+  online_bool = false;
   return false;
 }
 
@@ -273,6 +305,11 @@ void setup() {
   Serial.println();
   Serial.println("[WiFi] connected");
   Serial.println("[WiFi] IP address: " + String(WiFi.localIP()));
+
+  // ------------------------------------------------------------------------------------------------
+  // Create Display Task
+  // ------------------------------------------------------------------------------------------------
+  xTaskCreate(updateStats, "Update Display", 4096, NULL, 1, NULL);
 }
 
 // ###################################################################################################
@@ -292,9 +329,6 @@ void loop() {
   // ------------------------------------------------------------------------------------------------
   // WiFi
   // ------------------------------------------------------------------------------------------------
-
-  // Show activity indicator while connecting / crawling
-  updateDisplay();
 
   // Reconnect WiFi if needed
   if (!reconnect_to_wifi()) {
@@ -368,23 +402,6 @@ void loop() {
     // End
     httpclient.end();
   }
-
-  // ------------------------------------------------------------------------------------------------
-  // Update Stats
-  // ------------------------------------------------------------------------------------------------
-
-  // Update Serial
-  Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-  Serial.println("Wifi                     : " + String(online_bool ? "true" : "false"));
-  Serial.println("WiFi Signal (dBm)        : " + String(wifi_signal_dBm_raw));
-  Serial.println("WiFi Signal              : " + wifi_signal_dBm_name);
-  Serial.println("WiFi Signal (bars)       : " + String(wifi_signal_dBm_bars) + "/4");
-  Serial.println("HTTP Code                : " + String(http_code_int) + " (" + http_code_str + ")");
-  Serial.println("Current UK threat level  : " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
-  Serial.println("Threat level description : " + String(threat_level_desc));
-
-  // Update Display (activity off)
-  updateDisplay();
 
   // ------------------------------------------------------------------------------------------------
   // Delay next iteration
