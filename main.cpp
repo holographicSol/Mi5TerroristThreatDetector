@@ -248,7 +248,7 @@ bool connect_to_wifi() {
       ap_connected = true;
       Serial.println();
       Serial.println("[WiFi] connected");
-      Serial.println("[WiFi] IP address: " + String(WiFi.localIP()));
+      Serial.println("[WiFi] IP address: " + WiFi.localIP().toString());
       return true;
     }
     Serial.print(".");
@@ -518,7 +518,7 @@ void serialTask(void * pvParameters) {
               if (wifimulti.run() == WL_CONNECTED) {
                 ap_connected = true;
                 connected = true;
-                Serial.println("\n[cmd] Connected. IP: " + String(WiFi.localIP()));
+                Serial.println("\n[cmd] Connected. IP: " + WiFi.localIP().toString());
                 break;
               }
               Serial.print(".");
