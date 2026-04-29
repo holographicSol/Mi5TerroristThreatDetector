@@ -38,6 +38,53 @@ HTTPClient httpclient;
 char *WIFI_SSID = "your_ssid";
 char *WIFI_PASS = "your_password";
 
+int    wifi_signal_dBm_raw  = 0;
+String wifi_signal_dBm_name = "pending";
+int    wifi_signal_dBm_bars    = 0;
+
+// ###################################################################################################
+// Get WIFI Signal (dBm)
+// ###################################################################################################
+int32_t getRSSIRaw() {
+  return WiFi.RSSI();
+}
+
+// ###################################################################################################
+// Get WIFI Signal Strength As String (dBm)
+// ###################################################################################################
+String getRSSIName() {
+  int32_t rssi = WiFi.RSSI();
+  
+  if (rssi >= -50) {
+    return "Excellent";
+  } else if (rssi >= -60) {
+    return "Good";
+  } else if (rssi >= -70) {
+    return "Fair";
+  } else if (rssi >= -80) {
+    return "Weak";
+  } else {
+    return "Very Weak";
+  }
+}
+
+// ###################################################################################################
+// WIFI Signal Bars (dBm)
+// ###################################################################################################
+int getRSSIBars(int max_bars) {
+  int32_t rssi = WiFi.RSSI();
+  int bars = 0;
+  
+  if (rssi >= -50) bars = max_bars;
+  else if (rssi >= -60) bars = max_bars - 1;
+  else if (rssi >= -70) bars = max_bars - 2;
+  else if (rssi >= -80) bars = max_bars - 3;
+  else if (rssi > -100) bars = 1;
+  else bars = 0;
+  
+  return bars;
+}
+
 // ###################################################################################################
 // GLOBAL STATS
 // ###################################################################################################
@@ -50,10 +97,10 @@ int    http_code_int = -1;
 String http_code_str = "Unknown";
 
 // Threat level
-char *threat_level_url     = "https://www.mi5.gov.uk/UKThreatLevel/UKThreatLevel.xml";
-int   threat_level_int     = 0;
-String threat_level_str    = "pending";
-String threat_level_desc   = "pending";
+char *threat_level_url   = "https://www.mi5.gov.uk/UKThreatLevel/UKThreatLevel.xml";
+int   threat_level_int   = 0;
+String threat_level_str  = "pending";
+String threat_level_desc = "pending";
 
 // Display Header
 String display_header = "Mi5 THREAT LEVEL";
@@ -61,55 +108,68 @@ String display_header = "Mi5 THREAT LEVEL";
 // Serial Header
 String serial_header = "[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]";
 
+
 // ###################################################################################################
 // DRAW HEADER
 // ###################################################################################################
 static void drawHeader() {
-    display_0.setFont(u8g2_font_7x13B_tr);
+    display_0.setFont(u8g2_font_6x10_tf);
     // Header background
     display_0.setDrawColor(1);
-    display_0.drawBox(0, 0, 128, 15);
+    display_0.drawBox(0, 0, 128, 11);
     // Header text
     display_0.setDrawColor(0);
-    display_0.drawStr(64 - (display_0.getStrWidth(display_header.c_str()) / 2), 12, display_header.c_str());
+    display_0.drawStr(64 - (display_0.getStrWidth(display_header.c_str()) / 2), 9, display_header.c_str());
     display_0.setDrawColor(1);
 }
 
 // ###################################################################################################
 // UPDATE DISPLAY
 // ###################################################################################################
-void updateDisplay(int http_code,
-                const String& http_desc,
-                const String& level_str,
-                int level_int,
-                const String& level_desc) {
+void updateDisplay() {
   display_0.firstPage();
   do {
-    // Header (large font, black on white)
+    display_0.setFont(u8g2_font_6x10_tf);
+
+    // Header (inverted, y=0-10)
     drawHeader();
 
-    // Level int (6x10 font, white on black)
-    display_0.setFont(u8g2_font_6x10_tf);
+    // Level str (centered, y=24)
     display_0.setDrawColor(1);
-    String line2 = "(" + String(level_int) + "/5)";
-    display_0.drawStr(64 - (display_0.getStrWidth(line2.c_str()) / 2), 32, line2.c_str());
+    display_0.drawStr(64 - (display_0.getStrWidth(threat_level_str.c_str()) / 2), 24, threat_level_str.c_str());
 
-    // Level str (6x10 font, white on black)
-    display_0.setFont(u8g2_font_6x10_tf);
+    // Level int "(N/5)" (centered, y=36)
+    String lineInt = "(" + String(threat_level_int) + "/5)";
+    display_0.drawStr(64 - (display_0.getStrWidth(lineInt.c_str()) / 2), 36, lineInt.c_str());
+
+    // Draw Bottom info bar (inverted, y=53-63)
     display_0.setDrawColor(1);
-    String line1 = level_str;
-    display_0.drawStr(64 - (display_0.getStrWidth(line1.c_str()) / 2), 44, line1.c_str());
+    display_0.drawBox(0, 53, 128, 11);
+    display_0.setDrawColor(0);
 
-    // HTTP Code (bottom of screen)
-    // if (http_code_int!=200) {
-        display_0.setFont(u8g2_font_6x10_tf);
-        display_0.setDrawColor(1);
-        display_0.drawBox(0, 55, 128, 12);
-        display_0.setDrawColor(0);
-        String line0 = String(http_code) + " " + http_desc + "";
-        display_0.drawStr(64 - (display_0.getStrWidth(line0.c_str()) / 2), 63, line0.c_str());
-        display_0.setDrawColor(1);
-    // }
+    // WiFi symbol: rising bars, left-aligned, bottom at y=62
+    // 4 bars each 2px wide with 1px gap; filled up to wifi_signal_dBm_bars, outline only beyond
+    {
+        const int barW        = 2;
+        const int barGap      = 1;
+        const int barBase     = 62;
+        const int barHeights[4] = {3, 5, 7, 9};
+        for (int i = 0; i < wifi_signal_dBm_bars; i++) {
+            int bx = 2 + i * (barW + barGap);
+            int bh = barHeights[i];
+            int by = barBase - bh + 1;
+            if (online_bool && i < wifi_signal_dBm_bars) {
+                display_0.drawBox(bx, by, barW, bh);
+            } else {
+                display_0.drawFrame(bx, by, barW, bh);
+            }
+        }
+    }
+
+    // HTTP code: right-aligned (no description)
+    String httpStr = String(http_code_int);
+    display_0.drawStr(128 - display_0.getStrWidth(httpStr.c_str()) - 6, 62, httpStr.c_str());
+
 
   } while (display_0.nextPage());
 }
@@ -220,9 +280,21 @@ void setup() {
 // ###################################################################################################
 void loop() {
 
+  // Get raw RSSI (dBm)
+  wifi_signal_dBm_raw = WiFi.RSSI();  // Range: -30 to -100 dBm
+
+  // Get wifi_signal_dBm_name description
+  wifi_signal_dBm_name = getRSSIName();
+
+  // Get bar count (0-4)
+  wifi_signal_dBm_bars = getRSSIBars(4);
+
   // ------------------------------------------------------------------------------------------------
   // WiFi
   // ------------------------------------------------------------------------------------------------
+
+  // Show activity indicator while connecting / crawling
+  updateDisplay();
 
   // Reconnect WiFi if needed
   if (!reconnect_to_wifi()) {
@@ -303,16 +375,19 @@ void loop() {
 
   // Update Serial
   Serial.println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------");
-  Serial.println("Online                   : " + String(online_bool ? "true" : "false"));
+  Serial.println("Wifi                     : " + String(online_bool ? "true" : "false"));
+  Serial.println("WiFi Signal (dBm)        : " + String(wifi_signal_dBm_raw));
+  Serial.println("WiFi Signal              : " + wifi_signal_dBm_name);
+  Serial.println("WiFi Signal (bars)       : " + String(wifi_signal_dBm_bars) + "/4");
   Serial.println("HTTP Code                : " + String(http_code_int) + " (" + http_code_str + ")");
   Serial.println("Current UK threat level  : " + String(threat_level_str) + " (" + String(threat_level_int) + "/5)");
   Serial.println("Threat level description : " + String(threat_level_desc));
 
-  // Update Display
-  updateDisplay(http_code_int, http_code_str, threat_level_str, threat_level_int, threat_level_desc);
+  // Update Display (activity off)
+  updateDisplay();
 
   // ------------------------------------------------------------------------------------------------
   // Delay next iteration
   // ------------------------------------------------------------------------------------------------
-  delay(10000);
+  delay(3000);
 }
