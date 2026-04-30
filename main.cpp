@@ -160,7 +160,7 @@ bool validate_password(const char* password) {
 // ###################################################################################################
 void saveConfigFile() {
 
-  Serial.println(F("Saving configuration..."));
+  Serial.println(F("[saveConfigFile] Saving configuration..."));
   
   // Create a JSON document
   JsonDocument json;
@@ -169,11 +169,11 @@ void saveConfigFile() {
  
   // Open config file
   File configFile = SPIFFS.open(JSON_CONFIG_FILE, "w");
-  if (!configFile) {Serial.println("failed to open config file for writing");}
+  if (!configFile) {Serial.println("[saveConfigFile] Failed to open config file for writing");}
  
   // Serialize JSON data to write to file
   serializeJsonPretty(json, Serial);
-  if (serializeJson(json, configFile) == 0) {Serial.println(F("Failed to write to file"));}
+  if (serializeJson(json, configFile) == 0) {Serial.println("[saveConfigFile] Failed to write to file");}
 
   // Close file
   configFile.close();
@@ -189,26 +189,26 @@ bool loadConfigFile()
   // SPIFFS.format();
  
   // Read configuration from FS json
-  Serial.println("Mounting File System...");
+  Serial.println("[loadConfigFile] Mounting File System...");
  
   // May need to make it begin(true) first time you are using SPIFFS
   if (SPIFFS.begin(false) || SPIFFS.begin(true))
   {
-    Serial.println("mounted file system");
+    Serial.println("[loadConfigFile] Mounted file system");
     if (SPIFFS.exists(JSON_CONFIG_FILE))
     {
       // The file exists, reading and loading
-      Serial.println("reading config file");
+      Serial.println("[loadConfigFile] Reading config file");
       File configFile = SPIFFS.open(JSON_CONFIG_FILE, "r");
       if (configFile)
       {
-        Serial.println("Opened configuration file");
+        Serial.println("[loadConfigFile] Opened configuration file");
         JsonDocument json;
         DeserializationError error = deserializeJson(json, configFile);
         serializeJsonPretty(json, Serial);
         if (!error)
         {
-          Serial.println("Parsing JSON");
+          Serial.println("[loadConfigFile] Parsing JSON");
 
           memset(WIFI_SSID, 0, sizeof(WIFI_SSID));
           memset(WIFI_PASS, 0, sizeof(WIFI_PASS));
@@ -217,14 +217,14 @@ bool loadConfigFile()
  
           return true;
         }
-        else {Serial.println("Failed to load json config");}
+        else {Serial.println("[loadConfigFile] Failed to load json config");}
       }
     }
   }
   else
   {
     // Error mounting file system
-    Serial.println("Failed to mount FS");
+    Serial.println("[loadConfigFile] Failed to mount FS");
   }
  
   return false;
@@ -308,34 +308,6 @@ String httpCodeToDesc(int code) {
   if (code == -3)  return "Send Failed";
   if (code == -4)  return "Read Timeout";
   return "Unknown";
-}
-
-// ###################################################################################################
-// RECONNECT TO WIFI
-// ###################################################################################################
-bool connect_to_wifi() {
-
-  if (WiFi.status() == WL_CONNECTED) {
-    ap_connected = true;
-    return true;
-  }
-  Serial.println("[WiFi] trying to connect...");
-
-  for (int i=0; i<10; i++) {
-    Serial.println("Connection attempt: " + String(i+1) + "/10");
-    ap_connected = false;
-    if (wifimulti.run() == WL_CONNECTED) {
-      ap_connected = true;
-      Serial.println();
-      Serial.println("[WiFi] connected");
-      Serial.println("[WiFi] IP address: " + WiFi.localIP().toString());
-      return true;
-    }
-    Serial.print(".");
-    delay(500);
-  }
-  ap_connected = false;
-  return false;
 }
 
 // ###################################################################################################
@@ -431,12 +403,27 @@ void connectionTask(void * pvParameters) {
     // Connect WiFi if needed
     // -----------------------------------------------------------------------------------------------
 
-    if (!connect_to_wifi()) {
+    // Connected
+    if (WiFi.status() == WL_CONNECTED) {ap_connected = true;}
+
+    // Connect
+    else {
       ap_connected = false;
-      Serial.println("[WiFi] connection failed");
-      delay(5000);
+      Serial.println("[WiFi] trying to connect...");
+
+      for (int i=0; i<10; i++) {
+        Serial.println("[WiFi] Connection attempt: " + String(i+1) + "/10");
+        if (wifimulti.run() == WL_CONNECTED) {
+          ap_connected = true;
+          Serial.println();
+          Serial.println("[WiFi] connected");
+          Serial.println("[WiFi] IP address: " + WiFi.localIP().toString());
+          break;
+        }
+        Serial.print(".");
+        delay(500);
+      }
     }
-    else {ap_connected = true;}
 
     // -----------------------------------------------------------------------------------------------
     // End
@@ -540,7 +527,7 @@ void serialTask(void * pvParameters) {
     if (strlen(serial0Data.BUFFER)>=2) {
 
       // Debug Serial Buffer.
-      Serial.println("[CmdProcess] " + String(serial0Data.BUFFER));
+      Serial.println("[cmd] " + String(serial0Data.BUFFER));
 
       // Initialize argparse.
       argparser_reset(&parser);
