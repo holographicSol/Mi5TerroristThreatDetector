@@ -103,6 +103,7 @@ char*  threat_level_url  = "https://www.mi5.gov.uk/UKThreatLevel/UKThreatLevel.x
 int    threat_level_int  = 0;
 String threat_level_str  = "pending";
 String threat_level_desc = "pending";
+const char* threat_level_names[6] = {"LOW", "MODERATE", "SUBSTANTIAL", "SEVERE", "CRITICAL", "UNKNOWN"};
 
 // ###################################################################################################
 // GET CHECKSUM SERIAL0
@@ -233,10 +234,20 @@ bool loadConfigFile()
 // SET ACCESS POINT
 // ###################################################################################################
 bool set_ap(const char* ssid, const char* password) {
-  wifimulti.APlistClean(); // Clear existing APs to avoid conflicts
+  
+  // Clear existing APs to avoid conflicts
+  wifimulti.APlistClean();
+
+  // Update existing credentials
+  memset(WIFI_SSID, 0, sizeof(WIFI_SSID));
+  memset(WIFI_PASS, 0, sizeof(WIFI_PASS));
   strncpy(WIFI_SSID, ssid, sizeof(WIFI_SSID) - 1);
   strncpy(WIFI_PASS, password, sizeof(WIFI_PASS) - 1);
+
+  // Save to file system
   saveConfigFile();
+
+  // Add new AP to WiFiMulti
   bool result = wifimulti.addAP(WIFI_SSID, WIFI_PASS);
   if (result) {Serial.println("[WiFi] Access point updated successfully: " + String(WIFI_SSID));}
   else {Serial.println("[WiFi] Failed to update access point: " + String(WIFI_SSID));}
@@ -300,6 +311,31 @@ String httpCodeToDesc(int code) {
 }
 
 // ###################################################################################################
+// RECONNECT TO WIFI
+// ###################################################################################################
+bool connect_to_wifi() {
+  if (WiFi.status() == WL_CONNECTED) {
+    ap_connected = true;
+    return true;
+  }
+  Serial.println("[WiFi] trying to connect...");
+  while (WiFi.status() != WL_CONNECTED) {
+    ap_connected = false;
+    if (wifimulti.run() == WL_CONNECTED) {
+      ap_connected = true;
+      Serial.println();
+      Serial.println("[WiFi] connected");
+      Serial.println("[WiFi] IP address: " + WiFi.localIP().toString());
+      return true;
+    }
+    Serial.print(".");
+    delay(500);
+  }
+  ap_connected = false;
+  return false;
+}
+
+// ###################################################################################################
 // UPDATE DISPLAY TASK
 // ###################################################################################################
 void updateDisplayTask(void * pvParameters) {
@@ -332,8 +368,8 @@ void updateDisplayTask(void * pvParameters) {
       display_0.drawBox(0, 53, 128, 11);
       display_0.setDrawColor(0);
 
-      // WiFi symbol: rising bars, left-aligned
-      // 4 bars each 2px wide with 1px gap
+      // WiFi symbol: rising bars, left-aligned, bottom at y=62
+      // 4 bars each 2px wide with 1px gap; filled up to wifi_signal_dBm_bars, outline only beyond
       {
           const int barW        = 2;
           const int barGap      = 1;
@@ -392,25 +428,12 @@ void connectionTask(void * pvParameters) {
     // Connect WiFi if needed
     // -----------------------------------------------------------------------------------------------
 
-    // Conencted
-    if (WiFi.status() == WL_CONNECTED) {ap_connected = true;}
-
-    // Connect
-    else {
+    if (!connect_to_wifi()) {
       ap_connected = false;
-      Serial.println("[WiFi] trying to connect...");
-      while (WiFi.status() != WL_CONNECTED) {
-        ap_connected = false;
-        if (wifimulti.run() == WL_CONNECTED) {
-          ap_connected = true;
-          Serial.println();
-          Serial.println("[WiFi] connected");
-          Serial.println("[WiFi] IP address: " + WiFi.localIP().toString());
-        }
-        Serial.print(".");
-        delay(500);
-      }
+      Serial.println("[WiFi] connection failed");
+      delay(5000);
     }
+    else {ap_connected = true;}
 
     // -----------------------------------------------------------------------------------------------
     // End
@@ -562,12 +585,18 @@ void serialTask(void * pvParameters) {
 
           delay(100);
 
-          // Add new AP and attempt connection
+          // Add new AP
           if (set_ap(ssid, password)) {
+
+            // Reconnect to new AP
             Serial.println("[cmd] Connecting to: " + String(ssid));
             unsigned long t0 = millis();
             bool connected = false;
+            WiFi.reconnect();
+
+            // Wait for connection with timeout
             while (millis() - t0 < 15000) {
+              ap_connected = false;
               if (wifimulti.run() == WL_CONNECTED) {
                 ap_connected = true;
                 connected = true;
@@ -634,13 +663,11 @@ void setup() {
   // WiFi
   // ------------------------------------------------------------------------------------------------
 
-  // Load config from file
+  // Add access point
+  // Serial.println("[WiFi] Adding access point (SSID): " + String(WIFI_SSID));
   bool res = loadConfigFile();
   Serial.println("[WiFi] Loaded config from file: " + String(res ? "true" : "false"));
-  
-  // Add access point
-  if (res) {wifimulti.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);}
-  else {Serial.println("[WiFi] No valid AP config found. Use 'connect' command to connect AP.");}
+  wifimulti.addAP((const char*)WIFI_SSID, (const char*)WIFI_PASS);
 
   // ------------------------------------------------------------------------------------------------
   // Display
@@ -730,16 +757,15 @@ void loop() {
 
             // Extract level by word (upper/lower case)
             {
-            String upper = threat_level_str;
-            upper.toUpperCase();
-            const char* levels[] = {"CRITICAL", "SEVERE", "SUBSTANTIAL", "MODERATE", "LOW"};
-            threat_level_str = "";
-            for (int i = 0; i < 5; i++) {
-                if (upper.indexOf(levels[i]) != -1) {
-                threat_level_str = String(levels[i]);
-                break;
-                }
-            }
+              String upper = threat_level_str;
+              upper.toUpperCase();
+              threat_level_str = "";
+              for (int i = 0; i < 5; i++) {
+                  if (upper.indexOf(threat_level_names[i]) != -1) {
+                  threat_level_str = String(threat_level_names[i]);
+                  break;
+                  }
+              }
             }
 
             // Map level string to int
