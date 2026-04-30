@@ -314,12 +314,15 @@ String httpCodeToDesc(int code) {
 // RECONNECT TO WIFI
 // ###################################################################################################
 bool connect_to_wifi() {
+
   if (WiFi.status() == WL_CONNECTED) {
     ap_connected = true;
     return true;
   }
   Serial.println("[WiFi] trying to connect...");
-  while (WiFi.status() != WL_CONNECTED) {
+
+  for (int i=0; i<10; i++) {
+    Serial.println("Connection attempt: " + String(i+1) + "/10");
     ap_connected = false;
     if (wifimulti.run() == WL_CONNECTED) {
       ap_connected = true;
@@ -588,25 +591,12 @@ void serialTask(void * pvParameters) {
           // Add new AP
           if (set_ap(ssid, password)) {
 
-            // Reconnect to new AP
-            Serial.println("[cmd] Connecting to: " + String(ssid));
-            unsigned long t0 = millis();
-            bool connected = false;
+            // Reconnect WiFi (force a disconnect and allow connection task to handle further connection attempts)
+            Serial.println("[cmd] Reconnecting to: " + String(ssid));
             WiFi.reconnect();
-
-            // Wait for connection with timeout
-            while (millis() - t0 < 15000) {
-              ap_connected = false;
-              if (wifimulti.run() == WL_CONNECTED) {
-                ap_connected = true;
-                connected = true;
-                Serial.println("\n[cmd] Connected. IP: " + WiFi.localIP().toString());
-                break;
-              }
-              Serial.print(".");
-              delay(500);
-            }
-            if (!connected) {Serial.println("\n[cmd] Connection timed out.");}
+          }
+          else {
+            Serial.println("[cmd] Failed to set access point. Please check the credentials and try again.");
           }
 
           // Resume connection task
