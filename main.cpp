@@ -713,8 +713,8 @@ void loop() {
     http_code_str = httpCodeToDesc(http_code_int);
 
 
-    // Get Success
-    if (http_code_int > 0) {
+    // Scrape data if successful
+    if (http_code_int == 200) {
 
         // Get payload as String type
         String payload = httpclient.getString();
