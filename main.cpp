@@ -769,6 +769,13 @@ void loop() {
     // End
     httpclient.end();
   }
+  else {
+    http_code_int = -1;
+    http_code_str = "Offline";
+    // threat_level_str = "pending";
+    // threat_level_int = 0;
+    // threat_level_desc = "pending";
+  }
 
   // ------------------------------------------------------------------------------------------------
   // Delay next iteration
