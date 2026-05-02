@@ -332,7 +332,7 @@ void updateDisplayTask(void * pvParameters) {
 
       // Level str
       display_0.setDrawColor(1);
-      display_0.drawStr(64 - (display_0.getStrWidth(threat_level_str.c_str()) / 2), 29, threat_level_str.c_str());
+      display_0.drawStr(64 - (display_0.getStrWidth(threat_level_str.c_str()) / 2), 27, threat_level_str.c_str());
 
       // Level int - 5 numbered boxes, current level emphasized
       {
@@ -341,7 +341,7 @@ void updateDisplayTask(void * pvParameters) {
         const int boxGap = 4;
         const int totalW = 5 * boxW + 4 * boxGap;
         const int startX = (128 - totalW) / 2;
-        const int boxY   = 34;
+        const int boxY   = 33;
         const int textY  = boxY + 10;  // baseline: centers digit vertically in box
         for (int i = 1; i <= 5; i++) {
           int bx = startX + (i - 1) * (boxW + boxGap);
