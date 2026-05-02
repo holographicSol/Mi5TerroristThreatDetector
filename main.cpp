@@ -67,7 +67,7 @@ struct Serial0Data{
   char c_XOR;
 } serial0Data;
 
-String serial_header  = "[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]";
+String serial_header  = "[ MI5 TERRORIST THREAT LEVEL SYSTEM ]";
 
 // ###################################################################################################
 // DISPLAY
@@ -75,7 +75,7 @@ String serial_header  = "[ Mi5 TERRORIST THREAT LEVEL SYSTEM ]";
 
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C display_0(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
-String display_header = "Mi5 THREAT LEVEL";
+String display_header = "MI5 THREAT";
 
 // ###################################################################################################
 // WIFI
@@ -330,20 +330,44 @@ void updateDisplayTask(void * pvParameters) {
       display_0.drawStr(64 - (display_0.getStrWidth(display_header.c_str()) / 2), 9, display_header.c_str());
       display_0.setDrawColor(1);
 
-      // Level str (centered, y=29)
+      // Level str
       display_0.setDrawColor(1);
       display_0.drawStr(64 - (display_0.getStrWidth(threat_level_str.c_str()) / 2), 29, threat_level_str.c_str());
 
-      // Level int "(N/5)" (centered, y=41)
-      String lineInt = "(" + String(threat_level_int) + "/5)";
-      display_0.drawStr(64 - (display_0.getStrWidth(lineInt.c_str()) / 2), 41, lineInt.c_str());
+      // Level int - 5 numbered boxes, current level emphasized
+      {
+        const int boxW   = 16;
+        const int boxH   = 14;
+        const int boxGap = 3;
+        const int totalW = 5 * boxW + 4 * boxGap;
+        const int startX = (128 - totalW) / 2;
+        const int boxY   = 34;
+        const int textY  = boxY + 10;  // baseline: centers digit vertically in box
+        for (int i = 1; i <= 5; i++) {
+          int bx = startX + (i - 1) * (boxW + boxGap);
+          char digit[2] = { (char)('0' + i), '\0' };
+          int textX = bx + (boxW - display_0.getStrWidth(digit)) / 2;
+          if (i == threat_level_int) {
+            display_0.setDrawColor(1);
+            display_0.drawBox(bx, boxY, boxW, boxH);
+            display_0.setDrawColor(0);
+            display_0.drawStr(textX, textY, digit);
+            display_0.setDrawColor(1);
+          } else {
+            display_0.setDrawColor(1);
+            display_0.drawFrame(bx, boxY, boxW, boxH);
+            display_0.drawStr(textX, textY, digit);
+          }
+        }
+      }
 
-      // Draw Bottom info bar (inverted, y=53-63)
+      // Draw Bottom info bar
       display_0.setDrawColor(1);
       display_0.drawBox(0, 53, 128, 11);
       display_0.setDrawColor(0);
 
-      // WiFi symbol: rising bars, left-aligned, bottom at y=62
+      
+      // WiFi signal: rising bars
       // 4 bars each 2px wide with 1px gap; filled up to wifi_signal_dBm_bars, outline only beyond
       {
           const int barW        = 2;
