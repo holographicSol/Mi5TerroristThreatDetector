@@ -101,8 +101,8 @@ String http_code_str = "Unknown";
 // Threat level
 char*  threat_level_url  = "https://www.mi5.gov.uk/UKThreatLevel/UKThreatLevel.xml";
 int    threat_level_int  = 0;
-String threat_level_str  = "pending";
-String threat_level_desc = "pending";
+String threat_level_str  = "PENDING";
+String threat_level_desc = "PENDING";
 const char* threat_level_names[6] = {"LOW", "MODERATE", "SUBSTANTIAL", "SEVERE", "CRITICAL", "UNKNOWN"};
 
 // ###################################################################################################
@@ -336,9 +336,9 @@ void updateDisplayTask(void * pvParameters) {
 
       // Level int - 5 numbered boxes, current level emphasized
       {
-        const int boxW   = 16;
-        const int boxH   = 14;
-        const int boxGap = 3;
+        const int boxW   = 17;
+        const int boxH   = 13;
+        const int boxGap = 4;
         const int totalW = 5 * boxW + 4 * boxGap;
         const int startX = (128 - totalW) / 2;
         const int boxY   = 34;
