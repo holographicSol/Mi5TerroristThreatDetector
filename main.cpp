@@ -520,6 +520,11 @@ void connectionTask(void * pvParameters) {
       ap_connected = false;
       Serial.println("[WiFi] trying to connect...");
 
+      // Reconnect WiFi
+      Serial.println("[WiFi] Reconnecting to: " + String(WIFI_SSID));
+      WiFi.reconnect();
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+
       for (int i=0; i<10; i++) {
         Serial.println("[WiFi] Connection attempt: " + String(i+1) + "/10");
         if (wifimulti.run() == WL_CONNECTED) {
@@ -530,7 +535,7 @@ void connectionTask(void * pvParameters) {
           break;
         }
         Serial.print(".");
-        delay(500);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
       }
     }
 
@@ -682,7 +687,7 @@ void serialTask(void * pvParameters) {
           vTaskSuspend(ConnectionTask);
           ap_connected = false;
 
-          delay(100);
+          vTaskDelay(500 / portTICK_PERIOD_MS);
 
           // Add new AP
           if (set_ap(ssid, password)) {
@@ -694,6 +699,8 @@ void serialTask(void * pvParameters) {
           else {
             Serial.println("[cmd] Failed to set access point. Please check the credentials and try again.");
           }
+
+          vTaskDelay(500 / portTICK_PERIOD_MS);
 
           // Resume connection task
           vTaskResume(ConnectionTask);
